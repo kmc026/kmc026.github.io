@@ -1,0 +1,374 @@
+<html>
+<script src="https://d3js.org/d3.v4.js"></script>
+<script src="https://rawgit.com/susielu/d3-annotation/master/d3-annotation.min.js"></script>
+
+<style>
+
+    circle {
+        stroke: black;
+    }
+
+    .titleFont {
+        font: 45px "Times New Roman";
+        font-family: "Times New Roman", Times, serif;
+        font-weight: bold;
+    }
+
+    .dropDownMenu {
+        font: 18px "Times New Roman";
+        font-family: "Times New Roman", Times, serif;
+        float: right;
+    }
+
+    .dropDownMenuText {
+        position: absolute;
+    }
+
+    .buttonText {
+        font: 14px "Times New Roman";
+        font-family: "Times New Roman", Times, serif;
+    }
+
+    .buttons {
+        float: left
+    }
+
+    .line {
+        fill: none;
+    }
+
+    .text{
+        font: 12px "Times New Roman";
+        font-family: "Times New Roman", Times, serif;
+    }
+
+    .chartTitleFont{
+        font: 18px "Times New Roman";
+        font-family: "Times New Roman", Times, serif;
+        font-weight: bold;
+    } 
+
+    .chartAxisFont{
+        font: 18px "Times New Roman";
+        font-family: "Times New Roman", Times, serif;
+    
+    }
+
+    .tooltip {
+        stroke:black;
+        background-color: white;
+        position: absolute;
+        padding: 4px;
+        font: 12px "Times New Roman"
+    }
+
+</style>
+
+<body>
+ 
+    <div align="center" class="titleFont">
+    <b> Natural Population Growth per Western State </b>
+    </div>
+
+    <div id="tooltip" class="hidden"></div>
+
+    <td>
+        <div align="right" class="dropDownMenu"> 
+            <div id='dropDownMenuText'>State / Region:</div>
+            <select class="text" multiple id="chooseState" style="height:270px"></select>
+        </div>
+    </td>
+
+    <div align="center" id="chart">
+        <svg width=1300 height=500>
+        </svg>
+    </div>
+    
+    <td>
+        <div align="left" class="buttons">
+            Scene 1: [
+            <a class="scenes" href="#" onclick="create_chart(myData,'rbirth')">Birth Rate</a>
+            ]
+            Scene 2: [
+            <a class="scenes" href="#" onclick="create_chart(myData,'rdeath')">Death Rate</a>
+            ]
+            Scene 3: [
+            <a class="scenes" href="#" onclick="create_chart(myData,'rnaturalinc')">Natural Increase Rate</a>
+            ]
+        </div>
+    </td>
+
+    <script>
+        var width = 1300,
+            height = 635,
+            padding = 125;
+
+        function read_data(d, column) {
+            let result;
+            switch (column) {
+                case "rdeath":
+                    result = d.rdeath
+                    break;
+                case "rnaturalinc":
+                    result = d.rnaturalinc
+                    break;
+                default:
+                    result = d.rbirth
+            }
+            return result;
+        }
+
+        function switch_chart_title(column) {
+            let result;
+            switch (column) {
+                case "rdeath":
+                    result = "Death Rates per State From Years 2011 to 2019"
+                    break;
+                case "rnaturalinc":
+                    result = "Natural Increase Rates per State From Years 2011 to 2019"
+                    break;
+                default:
+                    result = "Birth Rates per State From Years 2011 to 2019"
+            }
+            return result;
+        }
+
+        function switch_y_label(column) {
+            let result;
+            switch (column) {
+                case "rdeath":
+                    result = "Death Rates"
+                    break;
+                case "rnaturalinc":
+                    result = "Natural Increase Rates"
+                    break;
+                default:
+                    result  = "Birth Rates"
+            }
+            return result;
+        }
+
+        function showTooltip(content, x, y) {
+            d3.select("#tooltip")                
+                .style("left", x + "px")
+                .style("top", y + "px")                
+                .attr("class", "tooltip")
+                .html(content);
+            d3.select("#tooltip").style("visibility", "visible");
+        }
+
+        function create_chart(data, column) {
+            var chartMode = column
+
+            d3.selectAll("svg").remove();
+            d3.select(".annotations").remove()
+
+            var svg = d3.select("#chart").append("svg").attr("width", width).attr("height", height);
+            
+            x_scale = d3.scaleTime().domain(d3.extent(data, function (d) {
+                 return d.date; 
+                })).range([padding, width - padding]);
+            y_scale = d3.scaleLinear().domain(d3.extent(data, function (d) {
+                return read_data(d, column);
+            })).range([height - padding, padding]);
+
+            const formatDate = d3.timeFormat("%Y%b");
+            x_axis = d3.axisBottom().scale(x_scale)
+                .tickValues(data.map(d => d.date))
+                .tickFormat(formatDate);
+            y_axis = d3.axisLeft().scale(y_scale);
+
+            var scaling_name = d3.scaleOrdinal(d3.schemeCategory10);
+            scaling_name.domain(data.map(function (i) { return i.name; }));
+
+            line = d3.line()
+                .x(function (d) { return x_scale(d.date) })
+                .y(function (d) { return y_scale(read_data(d, column)) });
+
+            svg = d3.select("svg")
+            svg.selectAll("circle")
+                .data(data).enter().append("circle")
+                .attr("fill", function (d) { return scaling_name(d.name); })
+                .attr("cx", function (d) { return x_scale(d.date); })
+                .attr("cy", function (d) { return y_scale(read_data(d, column)); })
+                .attr("r", 5);
+
+            svg.selectAll("circle").on("mouseover", function (d) {
+                d3.select(this).attr("r", 10);
+
+                var from = d.date.toLocaleString('en-us',{month:'short', year:'numeric'})
+                from =  (parseInt(from.split(" ")[1]) - 1).toString() + " " + from.split(" ")[0];
+                var until = d.date.toLocaleString('en-us',{month:'short', year:'numeric'})
+                until = until.split(" ")[1]+ " " + until.split(" ")[0];
+                var tooltipText = "State / Region: <b>" + d.name + "</b><br/>" +
+                    "From: <b>" + from + "</b> to <b>" + until + "</b><br/>" +
+                    "Birth Rate:<b>" + d.rbirth.toFixed(2) + "</b><br/>" +
+                    "Death Rate:<b>" + d.rdeath.toFixed(2) + "</b><br/>" +
+                    "Natural Increase Rate:<b>" + d.rnaturalinc.toFixed(2) + "</b><br/>";
+                    
+                var x = parseFloat(d3.select(this).attr("cx")) + 30;
+                var y = parseFloat(d3.select(this).attr("cy")) + 70;
+                showTooltip(tooltipText, x, y);
+            }).on("mouseout", function () {
+                    d3.select(this).attr("r", 5);
+                    d3.select("#tooltip").style("visibility", "hidden");
+                });
+
+            var legends = svg.append("g")
+                .attr("class", "text")
+                .attr("transform", "translate(" + (width - 100) + "," + 0 + ")");
+
+            var legend = legends.selectAll("g")
+                .data(groupedData)
+                .enter()
+                .append("g")
+                .attr("transform", function (d, i) {
+                    return "translate(" + 8 + "," + (i + 2) * 20 + ")";
+                });
+                legend.append("rect")
+                .attr("fill", function (d) { return scaling_name(d.key); })
+                .attr("height", 10)
+                .attr("width", 10);
+                legend.append("text")
+                .text(function (d) { return d.key })
+                .attr("x", 12)
+                .attr("y", 8)
+                .style("color", function (d) { return scaling_name(d.key); });
+                
+            svg.selectAll("path").data(groupedData)
+                .enter().append("path")
+                .attr("class", "line")
+                .style("stroke", function (d) { return scaling_name(d.key); })
+                .attr("d", function (d) {
+                    return line(d.values)
+                }
+                )
+
+            svg.append("text")
+                .attr("x", width - 800)
+                .attr("y", 40)
+                .attr("class", "chartTitleFont")
+                .text(function () { return switch_chart_title(column); })
+
+            svg.append("g")
+                .attr("class", "axis axis--x")
+                .attr("transform", "translate(0," + (height - padding) + ")")
+                .call(x_axis);
+            svg.append("text")
+                .attr("class", "chartAxisFont")
+                .attr("text-anchor", "end")
+                .attr("x", width - 650)
+                .attr("y", height - 70)
+                .text("Date");
+
+            svg.append("g")
+                .attr("class", "axis axis--y")
+                .attr("transform", "translate(" + padding + ",0)")
+                .call(y_axis);
+            svg.append("text")
+                .attr("class", "chartAxisFont")
+                .attr("text-anchor", "end")
+                .attr("x", -250)
+                .attr("y", 60)
+                .attr("transform", "translate(0," + (height - padding) + ")")
+                .attr("dy", ".5em")
+                .attr("transform", "rotate(-90)")
+                .text(function () { return switch_y_label(column); })
+            
+            create_annotations(return_annotations(data, column));
+        }
+
+        var myData, groupedData;
+        var parseTime = d3.timeParse("%Y%m%d");
+
+        d3.csv("https://raw.githubusercontent.com/kmc026/kmc026.github.io/main/state_natural_increase_final.csv", function (d) {
+            return {
+                name: d.name,
+                date: parseTime(d.date),
+                rbirth: parseFloat(d.rbirth),
+                rdeath: parseFloat(d.rdeath),
+                rnaturalinc: parseFloat(d.rnaturalinc)
+            };
+        }, 
+        function (data) {
+            myData = data;
+            groupedData = d3.nest().key(function (d) { return d.name }).entries(data);
+            chartMode = "rbirth";
+
+            var states = d3.map(data, function (d) { return (d.name) }).keys()
+            d3.select("#chooseState").selectAll('myOptions').data(states)
+                .enter().append('option')
+                .text(function (d) { return d; })
+                .attr("value", function (d) { return d; })
+                .style("hidden", function () {
+                })
+
+            d3.select("#chooseState").on("change", function (d) {
+                var sel = []
+                for (var option of d3.select('#chooseState').property("selectedOptions")) {
+                    sel.push(option.value)
+                }
+
+                d3.selectAll("svg").remove();
+                let newData = data.filter(function (d) {
+                    return sel.indexOf(d.name) !== -1
+                }
+                )
+                groupedData = d3.nest().key(function (d) { return d.name }).entries(newData);
+                myData = newData;
+                create_chart(newData, chartMode);
+
+            })
+         
+            create_chart(data, chartMode);
+
+        })
+
+        function create_annotations(sentence){
+            const data = [
+            {
+                note: {
+                label: sentence,
+                title: "Trends Highlight"
+                },
+                x: 900, y: 100, dy: 0, dx: 140
+            }
+            ]
+            const draw = d3.annotation().annotations(data)
+            d3.select("svg").append("g").call(draw)
+        }
+
+        function return_annotations(data, column){
+            var result;
+            var sentence;
+           
+            options = []
+            for (var option of d3.select('#chooseState').property("selectedOptions")){
+                options.push(option.value)
+            }
+
+            switch (column) {
+                case "rdeath":
+                    sentence = "There exists no obvious data trends.";
+                    break;
+                case "rnaturalinc":
+                    sentence = "As predicted, the natural population increase rates are also overall on descending trends.";
+                    break;
+                default:
+                    sentence = "The birth rates are overall on descending trends, possibly leading to decreasing population natural increase rates.";
+            }
+            
+            if(options.length==1){
+                var text = "This rate is on a descendig trend.";
+                return text;
+            }else{
+                return sentence;
+            }
+            return result;
+        }
+
+    </script>
+
+</body>
+
+</html>
